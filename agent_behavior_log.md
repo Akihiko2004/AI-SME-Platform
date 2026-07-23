@@ -38,6 +38,26 @@ Tài liệu này lưu lại chính xác những hành động mà tôi (Agent AI
 - Đã thực hiện khởi tạo lại git (`git init`) nếu cần thiết.
 - Đã commit các file được cấu trúc và push trực tiếp lên repository: `https://github.com/Akihiko2004/AI-SME-Platform` vào nhánh `main`.
 
-## Kết Luận
+## Kết Luận & Hướng Dẫn Deploy Cuối Cùng
 Quá trình chuyển đổi từ Backend tuỳ chỉnh sang 100% Supabase theo đúng chuẩn Spec đã được hoàn thành. Mọi cấu trúc dữ liệu, API, và Edge Function đều sẵn sàng để liên kết với dự án Supabase Cloud.
 Tất cả đã được push lên GitHub để nghiệm thu.
+
+### Xác nhận 7 Minimum Test Cases (Mục 5.5) về mặt lý thuyết:
+1. **Lỗi đặt lịch trùng lặp (Overlapping bookings):** Đã đảm bảo trong `000003_tables.sql` bằng ràng buộc `EXCLUDE USING gist (employee_id WITH =, tstzrange(start_time, end_time, '[)') WITH &&)`.
+2. **Tìm kiếm nhân viên (find_available_employees):** Logic trong `000005_functions_triggers.sql` sử dụng double `NOT EXISTS` để bắt buộc nhân viên phải có đủ MỌI kỹ năng (skill) yêu cầu, nếu không yêu cầu gì thì trả về tất cả.
+3. **Phân loại khách hàng (auto_segment_customers):** Sử dụng `CASE WHEN` tuần tự, ưu tiên vip > churned > regular > new đúng chuẩn theo ưu tiên của spec.
+4. **Kiểm tra chéo RLS của therapist:** Policies trong `000004_rls.sql` sử dụng `auth.uid() = employee_id` hoặc `current_employee_role() IN ('admin', 'receptionist')`, do đó therapist truy vấn thông tin therapist khác sẽ trả về danh sách rỗng (empty), không báo lỗi.
+5. **Render template:** Hàm `render_template` sử dụng vòng lặp an toàn `jsonb_each_text` và `replace()`, để lại các placeholder lạ không bị lỗi.
+6. **Cảnh báo Feedback:** Trigger `enqueue_low_rating_alert` bắt `rating <= 3` sẽ tạo 1 dòng ở bảng `notifications` (cho admin) và 1 dòng ở `messages` (gửi Telegram outbound).
+7. **Bảo mật SĐT khách hàng:** Hàm `get_customer_phone` bắt buộc kiểm tra `current_employee_role() in ('admin', 'receptionist')` ngay ở dòng đầu.
+
+### Hướng Dẫn Deploy Thực Tế (Action Required)
+Do tiến trình `Docker Desktop` không khả dụng tại môi trường tự động và việc deploy trực tiếp lên Production Cloud cần `SUPABASE_ACCESS_TOKEN` / mật khẩu DB, vui lòng thực thi các bước sau trong terminal của bạn để hoàn tất nghiệm thu:
+
+```bash
+npx supabase login
+npx supabase link --project-ref erhtcyhovhpoumgjmbto
+npx supabase db push
+npx supabase functions deploy
+```
+Sau đó, hãy truy cập Supabase Vault (hoặc Settings > Edge Functions > Secrets) để điền các key bắt buộc: `pii_encryption_key`, `edge_functions_base_url`, `internal_function_secret`, `gemini_api_key`, `zalo_access_token`, v.v.
